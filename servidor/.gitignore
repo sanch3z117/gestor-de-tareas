@@ -1,0 +1,8 @@
+# La clave privada VAPID identifica a este servidor ante el servicio de push.
+# Si se publica, cualquiera puede enviar push en su nombre. Nunca a Git.
+claves-vapid.json
+
+# Suscripciones y tareas de ejemplo: datos de ejecución, no código.
+datos.json
+
+node_modules/

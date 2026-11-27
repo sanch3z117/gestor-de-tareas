@@ -1,0 +1,13 @@
+{
+  "name": "gestor-tareas-servidor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor de ejemplo de la Sesión 26: sirve el Gestor de Tareas, gestiona suscripciones push y recibe la bandeja de salida.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}
