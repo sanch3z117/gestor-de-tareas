@@ -13,6 +13,9 @@ activo. Los paneles oscuros muestran datos reales devueltos por las APIs del nav
 - `sesion-22-nota-descifrada.png` — tras recargar la página e ingresar la misma contraseña, la nota se descifra correctamente.
 - `sesion-26-bandeja-pendiente.png` — la línea de estado con `1 cambio(s) pendiente(s)`: la tarea se guardó en el dispositivo y quedó anotada en `outbox` (servidor apagado).
 - `sesion-26-sincronizado.png` — tras disparar el evento `sync`, la bandeja quedó vacía y el estado dice `Todo sincronizado con el servidor`.
+- `sesion-23-lighthouse.html` — informe real de Lighthouse 13.6 (móvil) sobre la app
+  servida en `localhost:3000`: 100 en rendimiento, accesibilidad, buenas prácticas y SEO.
+  Se puede abrir en el navegador y expandir cada auditoría.
 
 
 Nota: no son capturas de la pestaña DevTools (las herramientas de automatización no controlan

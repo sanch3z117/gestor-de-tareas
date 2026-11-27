@@ -33,7 +33,7 @@ npm run sw              # workbox injectManifest workbox-config.js
 
 | Archivo | Qué es | Sesión |
 | --- | --- | --- |
-| `index.html` | Interfaz: lista, formulario, sensores, avisos, seguridad, cámara | 6, 22-26 |
+| `index.html` | Interfaz: lista, formulario, filtros, micrófono, sensores, avisos, seguridad, cámara | 6, 22-26 |
 | `css/estilos.css` | Estilos, incluido el indicador de conexión y el skeleton | 6, 23-26 |
 | `tareas.js` | Modelo de tarea y render del `<li>` (DOM y eventos) | 3-8 |
 | `app.js` | Punto de entrada: conecta todo y cablea la interfaz | 8, 22-26 |
@@ -61,15 +61,17 @@ npm run sw              # workbox injectManifest workbox-config.js
   de `fetch`, Cache Storage, versionado, limpieza de cachés viejos y las cinco
   estrategias (hoy expresadas como precaché + `CacheFirst` para íconos +
   `NetworkFirst` para la API).
-- **S22 · IndexedDB + Web Crypto**: CRUD, índices (`porPrioridad`, `porTitulo`,
+- **S22 · IndexedDB + Web Crypto**: CRUD, índices (`porPrioridad`, `porTitulo` **único**,
   `porFecha`), cursores, migración por tramos, clave derivada con PBKDF2
-  (100 000 iteraciones) y nota privada cifrada con AES-GCM.
+  (100 000 iteraciones) y nota privada cifrada con AES-GCM. Desde la interfaz:
+  filtro por prioridad con el índice y botón que completa en bloque con un cursor.
 - **S23 · Workbox + UX**: `sw.js` generado (hoy con `injectManifest`),
   indicador de conexión, botón de instalación propio con `beforeinstallprompt`,
   skeleton de carga y aviso para iOS.
 - **S24 · Dispositivo**: cámara con `<dialog>` compartido, captura a `Blob`,
   miniaturas con `revokeObjectURL`, ubicación con precisión en metros y errores
-  traducidos a mensajes útiles.
+  traducidos a mensajes útiles; micrófono con medidor de nivel (`AnalyserNode`)
+  sin grabar, con el hardware liberado al detener.
 - **S25 · Sensores**: permiso de iOS, detección de sensores reales, sacudida con
   umbral y enfriamiento, y botón «Deshacer» como mejora progresiva.
 - **S26 · Avisos, push y Background Sync**:
@@ -85,14 +87,18 @@ npm run sw              # workbox injectManifest workbox-config.js
 
 ## Migración de la base de datos
 
-`gestor-tareas-db` va por la **versión 3**, con tramos encadenados:
+`gestor-tareas-db` va por la **versión 4**, con tramos encadenados:
 
 - v1: stores `tareas` (con `porPrioridad`, `porTitulo`) y `config`.
 - v2: índice `porFecha` en `tareas`, sin perder datos.
 - v3: store `outbox` (clave `idCambio`) para el Background Sync.
+- v4: `porTitulo` pasa a **único** (S22). Antes de crear el índice se renombran
+  los títulos repetidos (`Título (2)`, `Título (3)`…); sin eso el `upgrade`
+  aborta con `ConstraintError` y la base nueva no abre nunca.
 
 Quien ya tenía una versión anterior conserva sus tareas y su sal; solo recibe
-lo nuevo.
+lo nuevo. El Service Worker abre la base con la misma `VERSION_DB`: abrirla con
+una versión menor lanza `VersionError` y el `sync` dejaría de vaciar la bandeja.
 
 ## Verificado en un navegador real (Chromium)
 
@@ -106,6 +112,20 @@ lo nuevo.
 - Plan B (enviar desde la página) probado de punta a punta.
 - Manifest sin errores; Chrome reporta como único obstáculo de instalabilidad
   `in-incognito` (el contexto de prueba), no un defecto del proyecto.
+- Base en **v4**: `porTitulo` es `unique`, y crear una tarea con título repetido
+  muestra «Ya existe una tarea llamada …» en lugar de fallar en silencio.
+- «Ver nota» con contraseña incorrecta y luego correcta: **descifra al reintentar**
+  (el estado del intento ya no se deduce de `textContent`).
+- Deshacer eliminación cuando el título ya está ocupado: restaura como
+  «Título (2)» en vez de perder la tarea.
+- Filtro por `porPrioridad` y botón «Completar las de esa prioridad» (cursor).
+- Micrófono con `AnalyserNode`: mide nivel sin grabar y libera las pistas al parar.
+- **Publicación en subruta** (`/gestor/`): Service Worker con scope correcto,
+  manifest e íconos 200, recarga sin conexión funcionando y **cero** peticiones
+  fuera de la subruta (ninguna ruta absoluta escrita a mano).
+- **Lighthouse 13.6 · móvil: 100 / 100 / 100 / 100** (rendimiento, accesibilidad,
+  buenas prácticas, SEO) y ninguna auditoría por debajo de 1. FCP 0,8 s, LCP 0,8 s,
+  TBT 0 ms, CLS 0,014. Informe en `evidencias/sesion-23-lighthouse.html`.
 
 **No verificable desde aquí**: el diálogo real de instalación, el permiso y la
 entrega de push a través del servicio de Google (Chrome no soporta Push en
