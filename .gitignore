@@ -1,0 +1,8 @@
+node_modules/
+
+# Sesión 26 — secretos y datos de ejecución del servidor de ejemplo
+servidor/claves-vapid.json
+servidor/datos.json
+
+# Salidas de herramientas
+sw.js.map
