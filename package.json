@@ -1,0 +1,16 @@
+{
+  "name": "gestor-de-tareas-base",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "sw": "workbox injectManifest workbox-config.js",
+    "servidor": "node servidor/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "devDependencies": {
+    "workbox-cli": "^7.4.1"
+  }
+}
