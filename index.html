@@ -6,7 +6,7 @@
 <title>Gestor de Tareas</title>
 <meta name="description" content="Gestor de tareas de la Electiva PWA: prioridades, nota privada cifrada con AES-GCM, foto y ubicación por tarea, y funciona sin conexión.">
 <meta name="theme-color" content="#1A1A1A">
-<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="css/estilos.css">
 </head>
@@ -36,6 +36,33 @@
     </form>
 
     <p id="estado-adjuntos" class="estado-adjuntos" aria-live="polite"></p>
+
+    <section class="filtros" aria-labelledby="filtros-titulo">
+      <h2 id="filtros-titulo">Filtrar tareas</h2>
+      <p class="subtitulo">Consulta por prioridad usando el índice <code>porPrioridad</code> de IndexedDB (Sesión 22), en vez de recorrer todas.</p>
+      <div class="filtros-fila">
+        <select id="filtro-prioridad" aria-label="Filtrar por prioridad">
+          <option value="">Todas</option>
+          <option value="alta">Alta</option>
+          <option value="media">Media</option>
+          <option value="baja">Baja</option>
+        </select>
+        <button id="btn-completar-filtro" type="button">Completar las de esa prioridad</button>
+      </div>
+      <p id="estado-filtro" class="estado-adjuntos" aria-live="polite"></p>
+    </section>
+
+    <section class="microfono" aria-labelledby="microfono-titulo">
+      <h2 id="microfono-titulo">Micrófono</h2>
+      <p class="subtitulo">Mide el nivel de entrada sin grabar nada (Sesión 24). El permiso se pide al pulsar.</p>
+      <div class="microfono-fila">
+        <button id="btn-microfono" type="button">🎙 Medir micrófono</button>
+      </div>
+      <div class="medidor" role="img" aria-label="Nivel del micrófono">
+        <div id="medidor-barra" class="medidor-barra"></div>
+      </div>
+      <p id="estado-microfono" class="estado-adjuntos" aria-live="polite"></p>
+    </section>
 
     <section class="sensores" aria-labelledby="sensores-titulo">
       <h2 id="sensores-titulo">Deshacer con el dispositivo</h2>

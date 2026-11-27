@@ -5,7 +5,45 @@
 import { cifrarTexto, descifrarTexto } from './cripto.js';
 
 const NOMBRE_DB = 'gestor-tareas-db';
-const VERSION_DB = 3;
+const VERSION_DB = 4;
+
+/**
+ * v4 (Sesión 22): `porTitulo` pasa a ser único, como pide la guía.
+ * Antes de crearlo hay que renombrar los títulos repetidos que ya existan: si
+ * no, crear el índice lanza ConstraintError y la base nueva no abre nunca.
+ */
+function migrarIndiceTituloUnico(store) {
+  if (store.indexNames.contains('porTitulo')) store.deleteIndex('porTitulo');
+
+  const lectura = store.getAll();
+  lectura.onsuccess = () => {
+    const usados = new Set();
+    const renombres = [];
+    for (const tarea of lectura.result) {
+      const titulo = tarea.titulo ?? '';
+      if (!usados.has(titulo)) {
+        usados.add(titulo);
+        continue;
+      }
+      let n = 2;
+      while (usados.has(`${titulo} (${n})`)) n++;
+      renombres.push({ ...tarea, titulo: `${titulo} (${n})` });
+      usados.add(`${titulo} (${n})`);
+    }
+
+    const crearIndice = () => store.createIndex('porTitulo', 'titulo', { unique: true });
+    if (renombres.length === 0) return crearIndice();
+
+    // El índice se crea solo cuando todas las escrituras se aplicaron.
+    let pendientes = renombres.length;
+    for (const registro of renombres) {
+      const escritura = store.put(registro);
+      escritura.onsuccess = () => {
+        if (--pendientes === 0) crearIndice();
+      };
+    }
+  };
+}
 
 /** Abre (o crea / migra) la base de datos. Los stores e índices solo se tocan aquí. */
 export function abrirBaseDeDatos() {
@@ -20,7 +58,8 @@ export function abrirBaseDeDatos() {
       if (version < 1) {
         const store = db.createObjectStore('tareas', { keyPath: 'id' });
         store.createIndex('porPrioridad', 'prioridad', { unique: false });
-        store.createIndex('porTitulo', 'titulo', { unique: false });
+        // Sesión 22: el título es único. En la v1 nació no-único; la v4 lo corrige.
+        store.createIndex('porTitulo', 'titulo', { unique: true });
         db.createObjectStore('config', { keyPath: 'clave' });
       }
 
@@ -35,6 +74,12 @@ export function abrirBaseDeDatos() {
         // UUID que genera la app (no autoIncrement): el servidor lo usa para no
         // duplicar un cambio si el envío se reintenta.
         db.createObjectStore('outbox', { keyPath: 'idCambio' });
+      }
+
+      if (version >= 1 && version < 4) {
+        // v4 (Sesión 22): porTitulo pasa a único. Se deduplican los títulos ya
+        // guardados antes de crear el índice, o el upgrade aborta con ConstraintError.
+        migrarIndiceTituloUnico(tx.objectStore('tareas'));
       }
     };
 

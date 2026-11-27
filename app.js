@@ -12,11 +12,15 @@ import {
   obtenerConfig,
   guardarTareaConNota,
   leerNotaPrivada,
+  tareasPorPrioridad,
+  completarPorPrioridad,
 } from "./db.js";
 import { derivarClaveDesdeContrasena } from "./cripto.js";
 import {
   abrirCamara,
+  abrirMicrofono,
   capturarFoto,
+  crearMedidorDeNivel,
   describirErrorCamara,
   describirErrorUbicacion,
   detenerCamara,
@@ -79,6 +83,12 @@ const btnEnviarPushEl = document.getElementById("btn-enviar-push");
 const btnCancelarPushEl = document.getElementById("btn-cancelar-push");
 const estadoAvisosEl = document.getElementById("estado-avisos");
 const estadoSyncEl = document.getElementById("estado-sync");
+const filtroPrioridadEl = document.getElementById("filtro-prioridad");
+const btnCompletarFiltroEl = document.getElementById("btn-completar-filtro");
+const estadoFiltroEl = document.getElementById("estado-filtro");
+const btnMicrofonoEl = document.getElementById("btn-microfono");
+const medidorBarraEl = document.getElementById("medidor-barra");
+const estadoMicrofonoEl = document.getElementById("estado-microfono");
 
 // Las URLs de objeto de las miniaturas se liberan en cada repintado.
 const revocarUrls = () => {
@@ -271,15 +281,14 @@ async function alternarCompletada(id) {
   if (!tarea) return;
   tarea.completada = !tarea.completada;
   await actualizarTarea(db, tarea);
-  pintarTodo();
+  await aplicarFiltro();
 }
 
 async function borrarTarea(id) {
   const tarea = tareas.find((t) => t.id === id);
   await eliminarTarea(db, id);
   ultimaEliminada = tarea ?? null;
-  tareas = await obtenerTodasLasTareas(db);
-  pintarTodo();
+  await aplicarFiltro();
   avisarSensores(ultimaEliminada ? `Eliminaste «${ultimaEliminada.titulo}». Puedes deshacerlo.` : "");
 }
 
@@ -289,16 +298,39 @@ async function deshacerEliminacion() {
   try {
     await agregarTarea(db, copia);
     ultimaEliminada = null;
-    tareas = await obtenerTodasLasTareas(db);
-    pintarTodo();
+    await aplicarFiltro();
     avisarSensores(`Se restauró «${copia.titulo}».`);
-  } catch {
-    avisarSensores("No se pudo restaurar: ya existe una tarea con ese título. Bórrala o cámbiala y vuelve a intentar.");
+  } catch (error) {
+    if (error?.name !== "ConstraintError") {
+      avisarSensores("No se pudo restaurar la tarea eliminada.");
+      return;
+    }
+    // El índice porTitulo es único: si ya hay una tarea con ese título, se
+    // restaura con un sufijo en vez de perderla. El usuario la ve y la renombra.
+    const todas = await obtenerTodasLasTareas(db);
+    let n = 2;
+    let tituloLibre;
+    do {
+      tituloLibre = `${ultimaEliminada.titulo} (${n})`;
+      n++;
+    } while (todas.some((t) => t.titulo === tituloLibre));
+    try {
+      await agregarTarea(db, { ...copia, titulo: tituloLibre });
+      const original = ultimaEliminada.titulo;
+      ultimaEliminada = null;
+      await aplicarFiltro();
+      avisarSensores(`Se restauró como «${tituloLibre}»: ya existía otra tarea «${original}».`);
+    } catch {
+      avisarSensores("No se pudo restaurar la tarea eliminada.");
+    }
   }
 }
 
 async function mostrarNota(tarea, notaEl) {
-  if (notaEl.textContent) {
+  // El estado se guarda aparte, no se deduce del texto del DOM: si se mirara
+  // textContent, el mensaje de error de un intento fallido impediría volver a
+  // intentar con la contraseña correcta.
+  if (notaEl.dataset.descifrada === "1") {
     notaEl.classList.toggle("oculta");
     return;
   }
@@ -309,9 +341,11 @@ async function mostrarNota(tarea, notaEl) {
   }
   try {
     notaEl.textContent = await leerNotaPrivada(claveSesion, tarea);
+    notaEl.dataset.descifrada = "1"; // solo un descifrado real habilita el simple mostrar/ocultar
     notaEl.classList.remove("oculta");
   } catch {
     notaEl.textContent = "No se pudo descifrar: la contraseña no coincide.";
+    notaEl.dataset.descifrada = ""; // se puede reintentar tras activar la clave correcta
     notaEl.classList.remove("oculta");
   }
 }
@@ -385,8 +419,7 @@ btnCapturarEl.addEventListener("click", async () => {
   try {
     tarea.foto = foto;
     await actualizarTarea(db, tarea);
-    tareas = await obtenerTodasLasTareas(db);
-    pintarTodo();
+    await aplicarFiltro();
     dlgCamara.close();
     avisarAdjuntos("Foto guardada en este dispositivo.");
   } catch {
@@ -401,8 +434,7 @@ async function adjuntarUbicacion(tarea) {
     const ubicacion = await obtenerUbicacion();
     tarea.ubicacion = ubicacion;
     await actualizarTarea(db, tarea);
-    tareas = await obtenerTodasLasTareas(db);
-    pintarTodo();
+    await aplicarFiltro();
     avisarAdjuntos(`Ubicación guardada (±${ubicacion.precision} m).`);
   } catch (error) {
     avisarAdjuntos(
@@ -466,6 +498,113 @@ btnSensoresEl.addEventListener("click", () => {
 btnDeshacerEl.addEventListener("click", deshacerEliminacion);
 window.addEventListener("pagehide", apagarSensores);
 
+// ── Sesión 22: consulta por el índice porPrioridad ────────────────────────
+// La lista se filtra con el índice de IndexedDB (tareasPorPrioridad), no con un
+// filter del arreglo en memoria: es la razón por la que el índice existe.
+let prioridadFiltro = "";
+
+async function aplicarFiltro(prioridad = prioridadFiltro) {
+  prioridadFiltro = prioridad;
+  if (!prioridad) {
+    tareas = await obtenerTodasLasTareas(db);
+    estadoFiltroEl.textContent = "";
+  } else {
+    tareas = await tareasPorPrioridad(db, prioridad);
+    estadoFiltroEl.textContent = `Índice porPrioridad: ${tareas.length} tarea(s) de prioridad ${prioridad}.`;
+  }
+  pintarTodo();
+}
+
+filtroPrioridadEl.addEventListener("change", () => {
+  void aplicarFiltro(filtroPrioridadEl.value);
+});
+
+btnCompletarFiltroEl.addEventListener("click", async () => {
+  const prioridad = filtroPrioridadEl.value;
+  if (!prioridad) {
+    estadoFiltroEl.textContent = "Elige una prioridad para completarlas en bloque.";
+    return;
+  }
+  btnCompletarFiltroEl.disabled = true;
+  try {
+    const cuantas = await completarPorPrioridad(db, prioridad);
+    await aplicarFiltro(prioridad);
+    estadoFiltroEl.textContent = `Cursor: ${cuantas} tarea(s) de prioridad ${prioridad} marcadas como completadas.`;
+  } catch {
+    estadoFiltroEl.textContent = "No se pudieron completar las tareas de esa prioridad.";
+  } finally {
+    btnCompletarFiltroEl.disabled = false;
+  }
+});
+
+// ── Sesión 24: micrófono con medidor de nivel, sin grabar ─────────────────
+let streamMicrofono = null;
+let medidor = null;
+let bucleMedidor = 0;
+
+function cerrarMicrofono() {
+  cancelAnimationFrame(bucleMedidor);
+  bucleMedidor = 0;
+  medidor?.cerrar();
+  medidor = null;
+  streamMicrofono = null;
+  medidorBarraEl.style.width = "0";
+  btnMicrofonoEl.textContent = "🎙 Medir micrófono";
+}
+
+function abrirMicrofonoConMedidor() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      reject(Object.assign(new Error("sin-soporte"), { name: "TypeError" }));
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      .then((stream) => {
+        streamMicrofono = stream;
+        medidor = crearMedidorDeNivel(stream);
+        resolve();
+      })
+      .catch(reject);
+  });
+}
+
+btnMicrofonoEl.addEventListener("click", async () => {
+  if (medidor) {
+    cerrarMicrofono();
+    estadoMicrofonoEl.textContent = "Micrófono detenido y liberado.";
+    return;
+  }
+  btnMicrofonoEl.disabled = true;
+  estadoMicrofonoEl.textContent = "Pidiendo permiso del micrófono…";
+  try {
+    // El permiso se pide AQUÍ, dentro del clic.
+    await abrirMicrofonoConMedidor();
+    btnMicrofonoEl.textContent = "⏹ Detener micrófono";
+    estadoMicrofonoEl.textContent = "Micrófono activo: mide el nivel, no graba.";
+    const pintar = () => {
+      const nivel = medidor.leer();
+      medidorBarraEl.style.width = `${Math.round(nivel * 100)}%`;
+      bucleMedidor = requestAnimationFrame(pintar);
+    };
+    pintar();
+  } catch (error) {
+    const nombre = error?.name ?? "";
+    estadoMicrofonoEl.textContent =
+      nombre === "NotAllowedError"
+        ? "Bloqueaste el permiso del micrófono. Habilítalo desde el candado de la barra de direcciones."
+        : nombre === "NotFoundError"
+          ? "Este dispositivo no tiene micrófono disponible."
+          : nombre === "TypeError"
+            ? "El micrófono solo funciona en HTTPS o en localhost."
+            : "No se pudo abrir el micrófono.";
+    medidorBarraEl.style.width = "0";
+  } finally {
+    btnMicrofonoEl.disabled = false;
+  }
+});
+
+window.addEventListener("pagehide", cerrarMicrofono);
+
 formEl.addEventListener("submit", async (evento) => {
   evento.preventDefault();
   const titulo = inputTituloEl.value.trim();
@@ -477,13 +616,23 @@ formEl.addEventListener("submit", async (evento) => {
     return;
   }
   const tarea = crearTarea(titulo, inputPrioridadEl.value);
-  if (nota) {
-    await guardarTareaConNota(db, claveSesion, { ...tarea, notaPrivada: nota });
-  } else {
-    await agregarTarea(db, tarea);
+  try {
+    if (nota) {
+      await guardarTareaConNota(db, claveSesion, { ...tarea, notaPrivada: nota });
+    } else {
+      await agregarTarea(db, tarea);
+    }
+  } catch (error) {
+    // El índice porTitulo es único (Sesión 22): un título repetido aborta la
+    // transacción con ConstraintError. Se explica en vez de fallar en silencio.
+    avisarAdjuntos(
+      error?.name === "ConstraintError"
+        ? `Ya existe una tarea llamada «${titulo}». Usa otro título.`
+        : "No se pudo guardar la tarea en este dispositivo."
+    );
+    return;
   }
-  tareas = await obtenerTodasLasTareas(db);
-  pintarTodo();
+  await aplicarFiltro();
   formEl.reset();
 
   // Sesión 26: la tarea ya está guardada en el dispositivo. Ahora se anota para

@@ -131,10 +131,10 @@ h1 { font-size: 1.6em; margin: 0 0 .1em; }
 
 /* Sesión 23 — UX/UI de PWA */
 .aviso-conexion {
-  position: fixed;
+  /* sticky y no fixed: así ocupa su espacio y no se superpone al encabezado,
+     pero sigue visible al desplazar la página. */
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
   z-index: 10;
   background: var(--gold);
   color: var(--ink);
@@ -274,6 +274,58 @@ h1 { font-size: 1.6em; margin: 0 0 .1em; }
   color: #555;
   margin: .6em 0 0;
   min-height: 1.2em;
+}
+
+/* Sesión 22/26 — filtro por prioridad con el índice porPrioridad */
+.filtros,
+.microfono {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: .9em 1em;
+  margin-bottom: 1.4em;
+  background: #faf8f2;
+}
+.filtros h2,
+.microfono h2 { font-size: 1em; margin: 0 0 .3em; }
+.filtros .subtitulo,
+.microfono .subtitulo { margin-bottom: .8em; }
+.filtros-fila,
+.microfono-fila { display: flex; gap: .5em; flex-wrap: wrap; }
+.filtros-fila select {
+  padding: .55em .5em;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.filtros-fila button,
+.microfono-fila button {
+  background: var(--ink);
+  color: var(--gold);
+  border: none;
+  border-radius: 8px;
+  padding: .55em 1em;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: .85em;
+}
+.filtros-fila button:hover:not(:disabled),
+.microfono-fila button:hover:not(:disabled) { background: #000; }
+.filtros-fila button:disabled,
+.microfono-fila button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Sesión 24 — medidor del micrófono sin grabar */
+.medidor {
+  height: 10px;
+  margin-top: .8em;
+  border-radius: 6px;
+  background: #ececec;
+  overflow: hidden;
+}
+.medidor-barra {
+  height: 100%;
+  width: 0;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #6fa8dc, #b8860b, var(--danger));
+  transition: width .08s linear;
 }
 
 /* Sesión 26 — avisos, push y sincronización */

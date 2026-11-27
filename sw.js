@@ -26,10 +26,16 @@ const { registerRoute } = workbox.routing;
 const { CacheFirst, NetworkFirst } = workbox.strategies;
 const { ExpirationPlugin } = workbox.expiration;
 
+// Ruta base de la app: "/" al servirla en la raíz y "/nombre-del-repo/" si algún
+// día se publica en una subruta (GitHub Pages). Nunca se escriben rutas
+// absolutas a mano: todo cuelga de BASE.
+const BASE = new URL(self.registration.scope).pathname;
+const urlBase = (ruta) => BASE + ruta;
+
 self.skipWaiting();
 workbox.core.clientsClaim();
 cleanupOutdatedCaches();
-precacheAndRoute([{"revision":"4a094b3bbb81f200a94593e7da6638ea","url":"index.html"},{"revision":"dfc2d93c900ede1cddd7123843815c38","url":"manifest.json"},{"revision":"a71fdbcef1f6c940b074b03152842244","url":"css/estilos.css"},{"revision":"aa97afbeb27b1ba39daebafe12ad5cb5","url":"tareas.js"},{"revision":"c1ae27f63ee70939372c249814ce7638","url":"sync.js"},{"revision":"fdb914082e8d404eefe2062da5c47d65","url":"sensores.js"},{"revision":"3bfb13095e985a8b29083d163d393ca0","url":"notificaciones.js"},{"revision":"df52ead407ed7de3b53f8f2304beccd8","url":"dispositivo.js"},{"revision":"cf6a0514a29fdd2d2ca757ef22667388","url":"db.js"},{"revision":"8e6ea216e8a5b31606ff6bce1ab2f974","url":"cripto.js"},{"revision":"45c101f6e9f92731787d4e87a21bcaa8","url":"app.js"},{"revision":"916675198be1f0b31c9535700364d050","url":"icon-512.png"},{"revision":"238df3f8103dfc9c36e481b23510eb84","url":"icon-512-maskable.png"},{"revision":"30dad524c42638418c4249e28bda4dbe","url":"icon-192.png"}]); // ← aquí Workbox inyecta la lista
+precacheAndRoute([{"revision":"c993171968d4e619b2a1d997273bfc33","url":"index.html"},{"revision":"340a1852c274e933f22079afd8029074","url":"manifest.json"},{"revision":"da02f4bffd0a4a1eb62826546a405188","url":"css/estilos.css"},{"revision":"aa97afbeb27b1ba39daebafe12ad5cb5","url":"tareas.js"},{"revision":"c1ae27f63ee70939372c249814ce7638","url":"sync.js"},{"revision":"fdb914082e8d404eefe2062da5c47d65","url":"sensores.js"},{"revision":"556099a32b0128847ab5425a6640c468","url":"notificaciones.js"},{"revision":"df52ead407ed7de3b53f8f2304beccd8","url":"dispositivo.js"},{"revision":"1489027ffc4a38829f8a56d6f953cbdc","url":"db.js"},{"revision":"8e6ea216e8a5b31606ff6bce1ab2f974","url":"cripto.js"},{"revision":"b72a384bb21f266deee9f35a4ea9ba00","url":"app.js"},{"revision":"916675198be1f0b31c9535700364d050","url":"icon-512.png"},{"revision":"238df3f8103dfc9c36e481b23510eb84","url":"icon-512-maskable.png"},{"revision":"30dad524c42638418c4249e28bda4dbe","url":"icon-192.png"}]); // ← aquí Workbox inyecta la lista
 
 // Íconos: casi nunca cambian → Cache First con expiración real.
 registerRoute(
@@ -42,13 +48,13 @@ registerRoute(
 
 // API: debe verse al día cuando hay red → Network First, con respaldo en caché.
 registerRoute(
-  ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET',
+  ({ url, request }) => url.pathname.startsWith(urlBase('api/')) && request.method === 'GET',
   new NetworkFirst({ cacheName: 'api-tareas' })
 );
 
 // ── Push: llega un mensaje del servidor aunque la app esté cerrada ─────────
 self.addEventListener('push', (event) => {
-  let datos = { titulo: 'Gestor de Tareas', cuerpo: 'Tienes novedades.', url: '/index.html' };
+  let datos = { titulo: 'Gestor de Tareas', cuerpo: 'Tienes novedades.', url: urlBase('index.html') };
   try {
     if (event.data) datos = { ...datos, ...event.data.json() };
   } catch {
@@ -60,8 +66,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(datos.titulo, {
       body: datos.cuerpo,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
+      icon: urlBase('icon-192.png'),
+      badge: urlBase('icon-192.png'),
       tag: datos.tag ?? 'gestor-aviso', // misma etiqueta = reemplaza, no apila
       data: { url: datos.url },
     })
@@ -71,7 +77,7 @@ self.addEventListener('push', (event) => {
 // ── Clic en la notificación: enfocar la app abierta, o abrirla ─────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const destino = new URL(event.notification.data?.url ?? '/index.html', self.location.origin).href;
+  const destino = new URL(event.notification.data?.url ?? urlBase('index.html'), self.location.origin).href;
   event.waitUntil(
     (async () => {
       const ventanas = await clients.matchAll({ type: 'window', includeUncontrolled: true });
@@ -88,12 +94,13 @@ self.addEventListener('notificationclick', (event) => {
 // se repite aquí y en sync.js (la versión de la página, para el plan B). Es la
 // misma duplicación que describe la Sesión 26 para el Gestor de Tareas.
 const NOMBRE_DB = 'gestor-tareas-db';
+const VERSION_DB = 4; // debe coincidir con db.js: abrir con una versión menor lanza VersionError
 const ETIQUETA_SYNC = 'sync-tareas';
 const RUTA_API_TAREAS = '/api/tareas';
 
 function abrirDB() {
   return new Promise((resolve, reject) => {
-    const peticion = indexedDB.open(NOMBRE_DB, 3);
+    const peticion = indexedDB.open(NOMBRE_DB, VERSION_DB);
     peticion.onsuccess = () => resolve(peticion.result);
     peticion.onerror = () => reject(peticion.error);
   });
@@ -139,9 +146,9 @@ async function avisarDeSincronizacion(enviados) {
   if (!visible) {
     await self.registration.showNotification('Tareas sincronizadas', {
       body: enviados === 1 ? '1 tarea llegó al servidor.' : `${enviados} tareas llegaron al servidor.`,
-      icon: '/icon-192.png',
+      icon: urlBase('icon-192.png'),
       tag: 'gestor-sync',
-      data: { url: '/index.html' },
+      data: { url: urlBase('index.html') },
     });
   }
 }

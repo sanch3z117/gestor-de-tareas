@@ -9,7 +9,13 @@
 // `new Notification()`: este último lanza TypeError en Chrome para Android y no
 // funciona cuando la página está cerrada.
 
-const ICONO = '/icon-192.png';
+// Ruta base de la app: "/" en la raíz y "/nombre-del-repo/" en una subruta.
+// `new URL('.', baseURI)` da el directorio del documento (con "/" final), así
+// que basta con pegarle la ruta relativa.
+const BASE = new URL('.', document.baseURI).pathname;
+const urlBase = (ruta) => BASE + ruta;
+const ICONO = urlBase('icon-192.png');
+const PAGINA = urlBase('index.html');
 
 /** Estado actual del permiso: "default" | "granted" | "denied" | "no-soportado". */
 export function estadoAvisos() {
@@ -24,7 +30,7 @@ export async function pedirPermisoNotificaciones() {
 }
 
 /** Notificación LOCAL (sin servidor): la muestra el propio Service Worker. */
-export async function mostrarAvisoLocal(titulo, cuerpo, url = '/index.html') {
+export async function mostrarAvisoLocal(titulo, cuerpo, url = PAGINA) {
   const reg = await navigator.serviceWorker.ready;
   await reg.showNotification(titulo, {
     body: cuerpo,

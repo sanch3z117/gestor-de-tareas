@@ -26,6 +26,12 @@ const { registerRoute } = workbox.routing;
 const { CacheFirst, NetworkFirst } = workbox.strategies;
 const { ExpirationPlugin } = workbox.expiration;
 
+// Ruta base de la app: "/" al servirla en la raíz y "/nombre-del-repo/" si algún
+// día se publica en una subruta (GitHub Pages). Nunca se escriben rutas
+// absolutas a mano: todo cuelga de BASE.
+const BASE = new URL(self.registration.scope).pathname;
+const urlBase = (ruta) => BASE + ruta;
+
 self.skipWaiting();
 workbox.core.clientsClaim();
 cleanupOutdatedCaches();
@@ -42,13 +48,13 @@ registerRoute(
 
 // API: debe verse al día cuando hay red → Network First, con respaldo en caché.
 registerRoute(
-  ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET',
+  ({ url, request }) => url.pathname.startsWith(urlBase('api/')) && request.method === 'GET',
   new NetworkFirst({ cacheName: 'api-tareas' })
 );
 
 // ── Push: llega un mensaje del servidor aunque la app esté cerrada ─────────
 self.addEventListener('push', (event) => {
-  let datos = { titulo: 'Gestor de Tareas', cuerpo: 'Tienes novedades.', url: '/index.html' };
+  let datos = { titulo: 'Gestor de Tareas', cuerpo: 'Tienes novedades.', url: urlBase('index.html') };
   try {
     if (event.data) datos = { ...datos, ...event.data.json() };
   } catch {
@@ -60,8 +66,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(datos.titulo, {
       body: datos.cuerpo,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
+      icon: urlBase('icon-192.png'),
+      badge: urlBase('icon-192.png'),
       tag: datos.tag ?? 'gestor-aviso', // misma etiqueta = reemplaza, no apila
       data: { url: datos.url },
     })
@@ -71,7 +77,7 @@ self.addEventListener('push', (event) => {
 // ── Clic en la notificación: enfocar la app abierta, o abrirla ─────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const destino = new URL(event.notification.data?.url ?? '/index.html', self.location.origin).href;
+  const destino = new URL(event.notification.data?.url ?? urlBase('index.html'), self.location.origin).href;
   event.waitUntil(
     (async () => {
       const ventanas = await clients.matchAll({ type: 'window', includeUncontrolled: true });
@@ -88,12 +94,13 @@ self.addEventListener('notificationclick', (event) => {
 // se repite aquí y en sync.js (la versión de la página, para el plan B). Es la
 // misma duplicación que describe la Sesión 26 para el Gestor de Tareas.
 const NOMBRE_DB = 'gestor-tareas-db';
+const VERSION_DB = 4; // debe coincidir con db.js: abrir con una versión menor lanza VersionError
 const ETIQUETA_SYNC = 'sync-tareas';
 const RUTA_API_TAREAS = '/api/tareas';
 
 function abrirDB() {
   return new Promise((resolve, reject) => {
-    const peticion = indexedDB.open(NOMBRE_DB, 3);
+    const peticion = indexedDB.open(NOMBRE_DB, VERSION_DB);
     peticion.onsuccess = () => resolve(peticion.result);
     peticion.onerror = () => reject(peticion.error);
   });
@@ -139,9 +146,9 @@ async function avisarDeSincronizacion(enviados) {
   if (!visible) {
     await self.registration.showNotification('Tareas sincronizadas', {
       body: enviados === 1 ? '1 tarea llegó al servidor.' : `${enviados} tareas llegaron al servidor.`,
-      icon: '/icon-192.png',
+      icon: urlBase('icon-192.png'),
       tag: 'gestor-sync',
-      data: { url: '/index.html' },
+      data: { url: urlBase('index.html') },
     });
   }
 }
