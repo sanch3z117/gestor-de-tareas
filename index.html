@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestor de Tareas</title>
+<meta name="description" content="Gestor de tareas de la Electiva PWA: prioridades, nota privada cifrada con AES-GCM, foto y ubicación por tarea, y funciona sin conexión.">
+<meta name="theme-color" content="#1A1A1A">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <div id="aviso-conexion" class="aviso-conexion oculta">Sin conexión — mostrando datos guardados</div>
+
+  <main class="app">
+    <p id="aviso-ios" class="aviso-ios oculta">En iPhone/iPad, instala esta app desde <strong>Compartir → Añadir a inicio</strong>.</p>
+
+    <div class="app-header">
+      <div>
+        <h1>Gestor de Tareas</h1>
+        <p class="subtitulo">Proyecto — Electiva PWA. Bloques 1 y 2, más las técnicas PWA de las Sesiones 15 a 26.</p>
+      </div>
+      <button id="btn-instalar" class="btn-instalar oculta" type="button">Instalar app</button>
+    </div>
+
+    <form id="form-tarea" class="form-tarea">
+      <input type="text" id="input-titulo" placeholder="Nueva tarea..." required>
+      <select id="input-prioridad" aria-label="Prioridad de la tarea">
+        <option value="baja">Baja</option>
+        <option value="media" selected>Media</option>
+        <option value="alta">Alta</option>
+      </select>
+      <input type="text" id="input-nota" placeholder="Nota privada (opcional, se cifra)">
+      <button type="submit">Agregar</button>
+    </form>
+
+    <p id="estado-adjuntos" class="estado-adjuntos" aria-live="polite"></p>
+
+    <section class="sensores" aria-labelledby="sensores-titulo">
+      <h2 id="sensores-titulo">Deshacer con el dispositivo</h2>
+      <p class="subtitulo">Agita el teléfono para recuperar la última tarea eliminada. En computador, usa el botón.</p>
+      <div class="sensores-fila">
+        <button id="btn-sensores" type="button">📳 Activar agitar para deshacer</button>
+        <button id="btn-deshacer" type="button" disabled>↩ Deshacer eliminación</button>
+      </div>
+      <p id="indicador-orientacion" class="indicador-orientacion" aria-live="polite"></p>
+      <p id="aviso-sensores" class="estado-adjuntos" aria-live="polite"></p>
+    </section>
+
+    <section class="avisos" aria-labelledby="avisos-titulo">
+      <h2 id="avisos-titulo">Avisos y sincronización</h2>
+      <p class="subtitulo">Los avisos y el envío al servidor son mejoras: la app funciona igual sin ellos. El permiso se pide solo cuando lo pulsas.</p>
+      <div class="avisos-fila">
+        <button id="btn-avisos" type="button">🔔 Activar avisos</button>
+        <button id="btn-suscribir" type="button">📡 Suscribir a push</button>
+        <button id="btn-enviar-push" type="button">✉ Enviar push de prueba</button>
+        <button id="btn-cancelar-push" type="button">Cancelar suscripción push</button>
+      </div>
+      <p id="estado-avisos" class="estado-avisos" role="status" aria-live="polite">Avisos sin activar.</p>
+      <p id="estado-sync" class="estado-sync" aria-live="polite">☁ Todo sincronizado con el servidor.</p>
+    </section>
+
+    <section class="seguridad">
+      <h2>Seguridad</h2>
+      <p class="subtitulo">La nota privada se cifra con AES-GCM usando una clave derivada de tu contraseña con PBKDF2. La contraseña no se guarda; la sal se conserva en IndexedDB.</p>
+      <div class="fila-seguridad">
+        <input type="password" id="input-contrasena" placeholder="Contraseña de cifrado">
+        <button type="button" id="btn-activar-cifrado">Activar cifrado</button>
+      </div>
+      <p id="estado-seguridad" class="estado-seguridad">Cifrado inactivo en esta sesión.</p>
+    </section>
+
+    <ul id="lista-tareas" class="lista-tareas"></ul>
+  </main>
+
+  <dialog id="dlg-camara" class="dlg-camara" aria-labelledby="dlg-camara-titulo">
+    <h2 id="dlg-camara-titulo">Adjuntar foto</h2>
+    <video id="video-camara" autoplay playsinline muted></video>
+    <div class="dlg-acciones">
+      <button id="btn-capturar" type="button">Capturar foto</button>
+      <button id="btn-cancelar-camara" type="button">Cancelar</button>
+    </div>
+    <p id="estado-camara" class="estado-adjuntos" aria-live="polite"></p>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
